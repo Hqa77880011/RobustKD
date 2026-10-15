@@ -1,0 +1,20 @@
+{
+  "epochs": 240,
+  "batch_size": 64,
+  "lr": 0.05,
+  "momentum": 0.9,
+  "weight_decay": 0.0005,
+  "milestones": [
+    150,
+    180,
+    210
+  ],
+  "temperature": 4.0,
+  "mu": 1.0,
+  "eta": 1.5,
+  "kd": 1.0,
+  "feature": 1.0,
+  "response": 0.5,
+  "seed": 0,
+  "device": "cpu"
+}
