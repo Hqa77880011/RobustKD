@@ -1,56 +1,55 @@
 # RobustKD
 
-PyTorch implementation of reliability-weighted corruption-response distillation for lightweight image classification.
+Implementation of reliability-weighted corruption-response distillation for lightweight image classification.
 
 ## Installation
 
-
-Use Python 3.11 or newer. Create and activate a virtual environment, then install:
+Use Python `>=3.11`. Run commands from the repository root. Create the environment, activate it with `source .venv/bin/activate` (Linux/macOS) or `.venv\Scripts\Activate.ps1` (PowerShell), then install the package.
 
 ```bash
 python -m venv .venv
 ```
 
-Activate with `source .venv/bin/activate` on Linux/macOS or `.venv\Scripts\Activate.ps1` in PowerShell, then install:
-
 ```bash
 python -m pip install -e .
-``` For GPU execution, install matching PyTorch and torchvision builds using the [PyTorch selector](https://pytorch.org/get-started/locally/).
+```
 
+## Data preparation
 
-## Data and execution
-
-`prepare` downloads [CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html). Download and unpack [CIFAR-100-C](https://zenodo.org/records/3555552) separately under `data/CIFAR-100-C`; it must contain `labels.npy` and the 15 corruption arrays. Corruption benchmark images are used only by evaluation.
+`prepare` downloads [CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html). Download [CIFAR-100-C](https://zenodo.org/records/3555552) separately to `data/CIFAR-100-C`, containing `labels.npy` and corruption arrays; use `--corruptions` to change that location.
 
 ```bash
 robustkd prepare
+```
+
+## Training and execution
+
+`configs/default.json` records seed `0`. Keep it fixed across paired methods and use separate output directories.
+
+```bash
 robustkd train --method teacher --output runs/teacher
 robustkd train --method robustkd --teacher runs/teacher/model.pt --output runs/full
+```
+
+## Evaluation
+
+```bash
 robustkd evaluate --method robustkd --checkpoint runs/full/model.pt --output runs/full
+```
+
+## Comparisons and ablations
+
+`--method` selects the implemented method or component control. Train separate checkpoints where applicable. `compare --inputs` aggregates evaluated run directories.
+
+```bash
 robustkd compare --inputs runs/full --output outputs/comparison
 robustkd plot --output outputs/comparison
 ```
 
-Run `train` and `evaluate` for `student`, `kd`, `feature`, `response` and `robustkd` in separate directories, using the same teacher for distillation variants. Supply all evaluated directories to `compare --inputs`. `response` disables only reliability weighting; `feature` retains clean logit/feature KD. `teacher` and `student` require no teacher checkpoint. To evaluate the teacher, select `--method teacher` and its checkpoint.
+## Outputs
 
-## Implementation
+The explicit run directories contain `model.pt`, `corruptions.csv`, `metrics.json`, `severity.csv`, `history.csv`. Comparisons write CSV/JSON and plots derived from those saved measurements.
 
-The teacher has three five-block residual stages of widths 64/128/256 (ResNet32x4); the student is torchvision ShuffleNetV2 x1.0 with stride-one stem and no maxpool for CIFAR. Feature losses use global pooled vectors and a training-only linear projection. The deployed checkpoint excludes teacher and projection. All student runs compute the same clean/corrupt views. The plain student is trained on clean labels; corrupt forwards preserve the matched training computation budget without adding a corrupted-label objective.
+## Verification
 
-The objective combines clean CE, temperature-scaled KL, clean feature MSE, cosine logit-response distance and normalized feature-response distance. Teacher confidence times `exp(-eta*severity)` weights response terms. Online corruptions are Gaussian noise, horizontal motion blur, brightness and JPEG, sampled at continuous normalized severity; they are training transforms rather than exact CIFAR-C kernels. The other eleven benchmark corruptions form the unseen set.
-
-`configs/default.json` contains the paper's 240-epoch SGD schedule, batch size 64, temperature 4, eta 1.5 and loss weights 1/1/0.5. `device`, `seed`, learning rate, milestones and loss weights are editable. `--data`, `--corruptions`, `--config`, `--teacher`, `--checkpoint` and `--output` select input/output locations. Each run saves the resolved settings, epoch training losses and final checkpoint. No test-based checkpoint selection is performed.
-
-## Metrics and outputs
-
-Evaluation computes clean accuracy; seen, unseen and overall accuracy over **all five severities**; per-corruption/severity accuracy; parameter count; and inference FLOPs. Conv/linear multiply and add count as two FLOPs; normalization, activation and pooling are excluded. The same convention applies to teacher and student. `corruptions.csv`, `severity.csv` and `metrics.json` contain generated measurements. Comparison writes CSV/JSON and plotting produces PNG/SVG. Rates use [0,1]. Keep seeds and teacher checkpoints paired across methods.
-
-## Multiple seeds
-
-Run matched configurations with different seeds in separate directories, then aggregate the generated metric files:
-
-```bash
-robustkd-report --inputs runs/seed0/metrics.json runs/seed1/metrics.json --output outputs/seeds
-```
-
-Use actual metric paths from your runs, including method subdirectories where applicable. Keep dataset, split and experimental condition fixed within a report. Summary CSV/JSON gives per-method arithmetic means and sample standard deviations; a single run has no standard-deviation estimate.
+Source checks used Python 3.13.5. Installed dependency metadata: numpy 2.1.3, torch 2.7.1+cu118, torchvision 0.22.1, scipy 1.15.3, matplotlib 3.10.0. Python AST, configuration files, CLI parser definitions and source input/output paths were checked without invoking command handlers. Training, full evaluation and CI were not run for this review.
